@@ -1,0 +1,89 @@
+Notes:
+*Oscillating reaction time at all times
+*Each fighter has a knowledge bank matching reactions to given attack. used to make decisions.
+*They also have a defensive knowledge bank keeping track of which actions the opponent took when a hit was scored
+*Fighter has a list of reactions to each move with weighting that is randomly selected
+*<Learn rate> param  determines how many occurences of defensive moves before the right action is incorporated into figher defence. Learned defences have a slightly lower chance of triggering that usual reactions to move
+*Making moves leaves places on your body vulnerable. (it's impossible to cover whole body at once)
+*<Caution> parameter determines how the fullness of a fighters knowledge bank affects his behavior
+*At any moment in time there is a weight distribution on left and right leg of fighter. Other fighters can see this
+If they can see anhy other part of the fighters torso
+*Each action has a time it takes to execute
+*<Action ambiguity> Actions can be misinterpreted by opponent. The likelihood of this is a param of orig fighter but the higher the ambiguity the lower the impact of the action. Opponent also has <perception>. Take a body vs head teep ( or left teep vs right teep) for example. If A's ambiguity is decent and Opponent perception is low, it's possible for them to be mistaken. Each action has a similiarity with some other actions (blurred by opponent <action ambiguity>) and the more similar an action is, the more likely the opponent is to react against other, similar actions. With enough ambiguity/perception this can even make other moves *more* likely
+*Blocked attacks change weight distribution depending on block location and impact of attack
+*two actions can be taken at once if they don't involve the same part of the body
+*<Range> each fighter has a range
+*Every action causes some vulnerabilities to open and some to close
+*Each action has a preferred weight dist
+*Each action has a degree of commital, with higher degrees more likely to trigger reaction. If an opponent attacks mid fake action and that action is a potential counter to the opponent action, that action is more likely to be picked and its execution speed gets a buff depending on the degree to commital
+?The closer an opponent is, the more likely a their fake will trigger a reaction
+*Each defensive action has a required weight dist. while moving weight dist is oscilating and it needs time to move into required values before defensive actions, like checking or even changing direction/moving back, can be taken.
+?When opp location is != or greater than action target location damage is lessened. too far and damage is null (missed)
+*Every action has a chance to cause you to lower your guard, making extra spots vulnerable. This chance is <defense mistake>. This also affects picking a less optimal reaction to an attack. (double hand block vs single hand for a head kick)
+?When you use your hand to press another, that opp hand is locked and will react slower. To prevent this from happening too close to their face when another tries to blind (slower jab) the opp meets thier hand in the middle
+*<mobility> Each fighter has a draw that pulls them out of range and makes them want to move/circle vs stand and bang.
+*I want weight distr and vector (instead of distance) btw fighters constantly changing.
+*<Stamina>: actions have a stamina cost, so does blocking and moving. low stamina makes all actions less likely and 'do/change nothing' action more likely. stamina always increasing but max stamina decreases to a minimum. Strikes blocked or not decrease max stamina. when stam is low, move around and do nothing are more favored. too low and do nothign is all that's left
+*<health>: self explanatory. one for each limb. lower health means all actions involving that limb are less likely
+When attacked, options include all attacking moves and relevant defensive reactions
+*Keeping your hands up drains stamina, the lower your stamina depending on your <defensive mistake> stat the more likely you are to put your hands down, at the cost that your hand distance to target location to take next action is more.
+*Every hand action has a target location, the  farther it is the longer that action will take to execute.
+*Actions have inital weight distrs and final weight distrs.
+*Actions have 'likely opponent end distance' when executed
+*The more an attack upsets the weight dist and distance between initial and target hand locations affect impact
+*<Personality> could make certain kinds of actions more likely. Like dodging actions where the opponent doesnt even touch you with the barest commitment necessary.
+*I want perception to be changing depending on what moves are being executed by or against a fighter. It should also change by mistake when a fighter is getting pressured. if opponent hand is on my face in a jab or cross, I should temporarily be blind.
+Use sfml to draw stickmen fighting
+
+Any action can be a combo.
+Combo generator:
+* actions have a 'likely vulnerable if executed' list for each offensive and defensive move. in the case of an attack, blocking an attack will likely leave some spot open (cross, body hook combo). In the case of defense it will create new opportunities (forward slip, upppercut combo)
+* actions that attack the newly created vulnerable spots while having a similar weight distr to previous action are weighted better and leave the opponent in a good enough range.
+* randomly sample actions to generate combos. Hash to keep them unique. Weight to ensure longer combos less likely.
+* combos can be broken by taking significant damage or moving body part to far from the start of next action.
+* Have more complext decision making occasionally like blind to body kick. (combo)
+* Actions that change the weight dist similarly and don't involve the same body part can be done close together cuz weight distr has less dist to travel and will be weighted more while other actions are happening. The less impact you give the first action in such a chain, the more impact (closer to 100%) you can get with the second action and the faster it can execute.
+* Make <step> an action that can be used simultaneosly with other actions with the benefit that it extends range. step + any action = extra range. but it cant be done with a left kick cuz it involves the legs, that has to be done in order
+* This combo gen has to ensure all attacks are within the current range and any range changes must involve <step>(change contestant range) or <push>(change opponent range) actions
+
+
+
+What factors into decisions:
+<caution> of fighter
+current dist to opponent
+current weight distr of opponent
+last seen vulnerabilities
+Knowledge bank
+visible vulnerable spots and knowledge of what weight distr you need to defend vs current weight distr of opponent and also their limb locations
+
+
+B low kicks, it lands
+- A walks forward (weight on left leg)
+- B times for weight to fall on left leg then hits left leg
+- A left hand comes down (Thought it was a teep and reacted wrong)
+A fakes cross, B moves back (a observing likely reactions to collect info)
+- A right hand raises
+- A returns right hand
+A fakes jab (out of range)
+- A left hand forward
+- B left hand forward (touch)
+- A replaces left hand
+- B replaces left hand
+B fakes low kick
+- B leg up
+- A blocks
+- B leg down (no strike)
+B body kick (Saw currently vulnerable spot)
+- B launch kick
+- A cross body check
+A takes deep step and launches cross (Saw face currently vulnerable while within deep step range)
+- B reacts and moves back
+- A brings other foot closer and bring other hand back to body in anticipation of attack
+B fakes teep, stops opponent advance
+- A stops, weight on front leg
+- Weight back to normal
+B in range, tries to grab opponent left hand
+- misses and drops left hand during action
+- A sees opportunity and lands cross
+
+

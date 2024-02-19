@@ -3,6 +3,7 @@ File describing actions contestants can take during a fight
 """
 
 from enum import Enum
+from common import BodyPart
 
 
 class Range(Enum):
@@ -64,6 +65,10 @@ class _ActionInterface:
         # how necessary is it that contestant is in a certain position?
         self.weight_distribution_necessity = weight_distribution_necessity
         pass
+
+    # TODO
+    def involves_part(self, body_part: BodyPart):
+        return False
 
 
 class AttackImpl(_ActionInterface):

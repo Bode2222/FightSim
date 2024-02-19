@@ -46,5 +46,5 @@ if __name__ == "__main__":
 
     Jack = Contestant("Jack", reaction_time=10)
     Jill = Contestant("Jill")
-    winner = fight([Jack])
+    winner = fight([Jack, Jill])
     print(f"{winner} won!")

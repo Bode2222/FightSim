@@ -32,6 +32,7 @@ class Attack(Enum):
 
 # Reactions
 # Nomenclature: name_tagRespondingTo_attackTargetRespondingTo
+# TODO: Add reactions for returning body parts to normal locations
 class Reaction(Enum):
     # Can only trigger if we've reacted and that hand enters range
     SIDE_PARRY_STRAIGHT_HEAD = ReactionImpl(

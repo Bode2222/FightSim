@@ -4,8 +4,8 @@ This file describes a contestant in a match
 
 import numpy as np
 from enum import Enum
-from common import BodyPart, Location
-from Environment import ContestantState, EnvInfoPacket
+from common import BodyPart, PhysicsAttr, ConcreteBodyPart
+from Environment import ContestantState
 
 
 class Personlity(Enum):
@@ -15,29 +15,6 @@ class Personlity(Enum):
     STAND_AND_BANG = 1
     # combos with low committments preferred (i.e. feints)
     FAKER = 2
-
-
-class Position:
-    def __init__(self, initial_loc, final_loc=None, amount_completed=0):
-        self.initial_loc = initial_loc
-        self.final_loc = final_loc
-        if not final_loc:
-            self.final_loc = self.initial_loc
-        self.amount_completed = amount_completed
-        if not amount_completed:
-            self.amount_completed = 0
-
-
-# An object that has a weight and takes up space (specifically has a location and
-# momentum for now)
-class PhysicsAttr:
-    def __init__(self, pos: Position, momentum: float = 0, mass: float = 10):
-        self.pos = pos
-        self.momentum = momentum
-        self._mass = mass
-
-    def apply_force(self, impact):
-        self.momentum = impact / self._mass
 
 
 class Contestant:
@@ -118,12 +95,12 @@ class Contestant:
 
         # private vars:
         self.body = {
-            BodyPart.HEAD: PhysicsAttr(Position(Location.NOSE), 0),
-            BodyPart.TORSO: PhysicsAttr(Position(Location.SOLAR_PLEXUS), 0),
-            BodyPart.HAND_L: PhysicsAttr(Position(Location.CHEEK_L), 0),
-            BodyPart.HAND_R: PhysicsAttr(Position(Location.CHEEK_R), 0),
-            BodyPart.LEG_L: PhysicsAttr(Position(Location.LEG_L), 0),
-            BodyPart.LEG_R: PhysicsAttr(Position(Location.LEG_L), 0),
+            ConcreteBodyPart(self.id, BodyPart.HEAD): PhysicsAttr(10),
+            ConcreteBodyPart(self.id, BodyPart.TORSO): PhysicsAttr(40),
+            ConcreteBodyPart(self.id, BodyPart.HAND_L): PhysicsAttr(4),
+            ConcreteBodyPart(self.id, BodyPart.HAND_R): PhysicsAttr(4),
+            ConcreteBodyPart(self.id, BodyPart.LEG_L): PhysicsAttr(20),
+            ConcreteBodyPart(self.id, BodyPart.LEG_R): PhysicsAttr(20),
         }
 
         # action we are currently executing
@@ -151,26 +128,46 @@ class Contestant:
     def update(self, environment_state: list):
         current_actions = []
         self._reaction_window.append(environment_state)
+
         # Have I been hit? Where and Does it displace that body part? if it does
         # attempt to return that body part to normal
-        my_info_packet = None
-        if self.id in environment_state:
-            my_info_packet = environment_state[self.id]
+        def apply_hits():
+            my_info_packet = None
+            if self.id in environment_state:
+                my_info_packet = environment_state[self.id]
 
-        if my_info_packet != None and my_info_packet._hits:
-            # when hit move body part with initial speed from impact while actively trying
-            # to return that body part to normal with lower force. i.e. set that body part
-            # momentum to impact value and add return to normal action to queue
-            for hit in my_info_packet._hits:
-                self.body[hit.affected_body_part].apply_force(hit.impact)
-                # current_actions.append(affectred_body_part_return_to_normal)
-            pass
+            if my_info_packet != None and my_info_packet._hits:
+                # when hit move body part with initial speed from impact while actively trying
+                # to return that body part to normal with lower force. i.e. set that body part
+                # momentum to impact value and add return to normal action to queue
+                for hit in my_info_packet._hits:
+                    self.body[hit.affected_body_part].apply_force(hit.impact)
 
         # Decide the best course of action in the current state
-        reactions_consumed_this_update = self.get_num_reactions_this_step()
-        for step in range(reactions_consumed_this_update):
-            current_actions.extend(self.choose_actions())
-            self._reaction_window.pop()
+        # TODO: implement choose_action
+        def react_to_environment():
+            reactions_consumed_this_update = self.get_num_reactions_this_step()
+            for step in range(reactions_consumed_this_update):
+                chosen_actions = self.choose_actions()
+                if chosen_actions:
+                    current_actions.extend(chosen_actions)
+                self._reaction_window.pop()
+
+        # for every body part if there are no actions involving it but it has more than
+        # 0 forces acting on it then add the return to normal action
+        # TODO: Complete this
+        def reposition_errant_body_parts():
+            for part, phys_attr in self.body.items():
+                actions_involving_part = [
+                    action
+                    for action in current_actions
+                    if action.involves_part(part.body_part)
+                ]
+                num_actions_involving_part = len(actions_involving_part)
+                num_forces_acting_on_part = len(phys_attr._forces)
+                if num_actions_involving_part == 0 and num_forces_acting_on_part > 0:
+                    # TODO: Return to neutral pos
+                    pass
 
         # update body locations and momentums to execute current action and body
         # mechanics of being hit if I was hit (i.e. head turning then snapping back)
@@ -178,13 +175,21 @@ class Contestant:
         # (the execution time of an action is based on distance travelled of striking
         # part at given speed)
         # check to see if anyone was hit?
-        for action in self._current_actions:
-            self.execute_action(action)
+        # TODO: implement execution_action
+        def execute_actions():
+            for action in self._current_actions:
+                self.execute_action(action)
 
-        # give this contentestants body positions in new state
-        # give current action
-        new_state = ContestantState(self, self._current_actions)
-        return new_state
+        # add forces to body
+        apply_hits()
+        # choose what moves to make next
+        react_to_environment()
+        # start executing those moves
+        execute_actions()
+        # replace any errant body parts if necesssary
+        reposition_errant_body_parts()
+        # return new state
+        return ContestantState(self, self._current_actions)
 
     # functions:
     # We should be randomly skipping a frame and
@@ -210,6 +215,7 @@ class Contestant:
         else:
             return reactions_to_consume + 2
 
+    # TODO: implement this
     def execute_actions(self, action):
         # grab distance from cur body position to target
         # increase position/momentum accordingly
@@ -219,8 +225,15 @@ class Contestant:
         # paths lose force
         return 0
 
+    # TODO: calculate impact based on the striking part and current velocity
+    def get_action_impact(self, action):
+        return 0
+
+    # TODO: implement this
     def choose_actions(self):
         # choose action (multiple can be chosen if they have distinct body parts)
+        # overwrite 'replace' actions (actions that move body parts back to their
+        # neurtal positions) if necessary
         # - defensive mistake stat factors into, with ambiguity and perception, that chance
         # of picking the wrong reaction
         # perception_update: if head is turned from a hit then depending on how far it
@@ -243,7 +256,7 @@ class Contestant:
         # if it's still comming, if so start reacting.
         # if we are attacking and nothing has changed keep at it
         # # Update the current_actions variable if necessary
-        return [0]
+        return None
 
     @classmethod
     def get_unique_id(cls):

@@ -5,51 +5,85 @@ File describing actions contestants can take during a fight
 from enum import Enum
 
 
-# enums
-class BodyParts(Enum):
-    HAND_L = 0
-    HAND_R = 1
-    LEG_L = 2
-    LEG_R = 3
+class Range(Enum):
+    PUNCH = 0
+    KICK = 1
+    PUSH_KICK = 2
+    OUT_OF_RANGE = 3
+    NULL = 4
 
 
-# every possible targetable location by an action
-class Locations(Enum):
-    LEG_L_STRIDE = 0
-    LEG_L_OUTSIDE = 1
-    LEG_L_BACK = 2
+# Tags describing each action
+class ActionTag:
+    QUICK = 0
+    current_id = 1
+
+    @classmethod
+    def get_unique_id(cls):
+        old_id = cls.current_id
+        cls.current_id += 1
+        return old_id
 
 
-class Vulnerabilities(Enum):
-    CHIN = 0
-    FOREHEAD = 1
+class AttackTag(ActionTag):
+    LIGHT = ActionTag.get_unique_id()
+    HEAVY = ActionTag.get_unique_id()
+    STRAIGHT_PATH = ActionTag.get_unique_id()
 
 
-class Action:
-    # time to peak of action
-    # target locations of each involved body part
-    # init weight dist required
-    # final weight dist
-    # Body parts involved
-    # list of likely vulnerability id's exposed
-    # Range
-    # every action execution requires a degree of commital from the contestant
-    # impact proportional to weight distr diff movement of body parts
-    # attribute: describes this action (e.g. weave=non-contact dodge reaction) or light/fast vs slow/heavy
-    pass
+class ReactionTag(ActionTag):
+    NON_CONTACT = ActionTag.get_unique_id()
+    CONTACT = ActionTag.get_unique_id()
 
 
-class Attack(Action):
+class _ActionInterface:
+
+    def __init__(
+        self,
+        execution_time,
+        target_body_locations,
+        init_weight_distribution,
+        final_weight_distribution,
+        weight_distribution_necessity,
+        likely_vulnerabilites_after_execution,
+        range,
+        tags,
+    ):
+        # target locations of each involved body part. doubles as a way to check for body parts involved
+        self.target_body_locations = target_body_locations
+        # init weight distribution required
+        self.init_weight_distribution = init_weight_distribution
+        # final weight dist
+        self.final_weight_distribution = final_weight_distribution
+        # list of likely vulnerability id's exposed on contestant
+        self.likely_vulnerabilites_after_execution = (
+            likely_vulnerabilites_after_execution
+        )
+        # tags: describes this action (e.g. weave=non-contact dodge reaction) or light/fast vs slow/heavy
+        self.tags = tags
+        # how necessary is it that contestant is in a certain position?
+        self.weight_distribution_necessity = weight_distribution_necessity
+        pass
+
+
+class AttackImpl(_ActionInterface):
+    def __init__(self, *args, **kwargs):
+        super.__init__(*args, **kwargs)
+
     # impact function (how hard this attack hit)
+    # calc impact proportional to weight distr diff movement of body parts
+    def impact(self, weight_shifted, distance_travelled):
+        pass
+
     pass
 
 
-class Reaction(Action):
-    # block type: non-contact or contact
-    # final weight dist is dependent on impact of attack
+class ReactionImpl(_ActionInterface):
+    def __init__(self, *args, **kwargs):
+        super.__init__(*args, **kwargs)
+
     pass
 
 
-all_actions = []
 # map each action to other actions as well as it's similarity to that other action
 action_ambiguity_map = None

@@ -6,6 +6,10 @@ import numpy as np
 from enum import Enum
 from common import BodyPart, PhysicsAttr, ConcreteBodyPart
 from Environment import ContestantState
+from ActionList import Reaction, Attack
+
+
+body_weight_impact_contribution = 0.1
 
 
 class Personlity(Enum):
@@ -103,6 +107,24 @@ class Contestant:
             ConcreteBodyPart(self.id, BodyPart.LEG_R): PhysicsAttr(20),
         }
 
+        self.head = ConcreteBodyPart(self.id, BodyPart.HEAD)
+        self.torso = ConcreteBodyPart(self.id, BodyPart.TORSO)
+        self.hand_l, self.hand_r = ConcreteBodyPart(
+            self.id, BodyPart.HAND_L
+        ), ConcreteBodyPart(self.id, BodyPart.HAND_R)
+        self.leg_l, self.leg_r = ConcreteBodyPart(
+            self.id, BodyPart.LEG_L
+        ), ConcreteBodyPart(self.id, BodyPart.LEG_R)
+        self.body_action_map = {
+            self.head: {},
+            self.torso: {},
+            self.hand_l: {},
+            self.hand_r: {},
+            self.leg_l: {},
+            self.leg_r: {},
+        }
+        self.body_mass = self._calculate_body_mass()
+
         # action we are currently executing
         self._current_actions = []
         # stack containing every action from what we last reacted to to what is
@@ -129,19 +151,7 @@ class Contestant:
         current_actions = []
         self._reaction_window.append(environment_state)
 
-        # Have I been hit? Where and Does it displace that body part? if it does
-        # attempt to return that body part to normal
-        def apply_hits():
-            my_info_packet = None
-            if self.id in environment_state:
-                my_info_packet = environment_state[self.id]
-
-            if my_info_packet != None and my_info_packet._hits:
-                # when hit move body part with initial speed from impact while actively trying
-                # to return that body part to normal with lower force. i.e. set that body part
-                # momentum to impact value and add return to normal action to queue
-                for hit in my_info_packet._hits:
-                    self.body[hit.affected_body_part].apply_force(hit.impact)
+        # environment gives me
 
         # Decide the best course of action in the current state
         # TODO: implement choose_action
@@ -153,39 +163,27 @@ class Contestant:
                     current_actions.extend(chosen_actions)
                 self._reaction_window.pop()
 
+        def action_involves_part(action, part):
+            return True
+
         # for every body part if there are no actions involving it but it has more than
         # 0 forces acting on it then add the return to normal action
-        # TODO: Complete this
         def reposition_errant_body_parts():
             for part, phys_attr in self.body.items():
                 actions_involving_part = [
                     action
                     for action in current_actions
-                    if action.involves_part(part.body_part)
+                    if action_involves_part(action, part.body_part)
                 ]
                 num_actions_involving_part = len(actions_involving_part)
                 num_forces_acting_on_part = len(phys_attr._forces)
                 if num_actions_involving_part == 0 and num_forces_acting_on_part > 0:
-                    # TODO: Return to neutral pos
-                    pass
+                    reset_action = self._body_part_to_neutral_pos(part.body_part)
+                    current_actions.append(reset_action)
+                    assert reset_action != None, "Reset action cannot be empty"
 
-        # update body locations and momentums to execute current action and body
-        # mechanics of being hit if I was hit (i.e. head turning then snapping back)
-        # into place. i.e. execute all queued actions
-        # (the execution time of an action is based on distance travelled of striking
-        # part at given speed)
-        # check to see if anyone was hit?
-        # TODO: implement execution_action
-        def execute_actions():
-            for action in self._current_actions:
-                self.execute_action(action)
-
-        # add forces to body
-        apply_hits()
         # choose what moves to make next
         react_to_environment()
-        # start executing those moves
-        execute_actions()
         # replace any errant body parts if necesssary
         reposition_errant_body_parts()
         # return new state
@@ -215,19 +213,35 @@ class Contestant:
         else:
             return reactions_to_consume + 2
 
-    # TODO: implement this
-    def execute_actions(self, action):
-        # grab distance from cur body position to target
-        # increase position/momentum accordingly
-        # personalize action (maybe some ppl perform certain actions faster/slower)
-        # while both feet are in contact with the floor kicks can have 'infinite' force
-        # every time step after a foot is off the floor any kicks following curved
-        # paths lose force
-        return 0
+    def _calculate_body_mass(self):
+        sum = 0
+        for phys_attr in self.body.values():
+            sum += phys_attr._mass
+        return sum
 
     # TODO: calculate impact based on the striking part and current velocity
-    def get_action_impact(self, action):
-        return 0
+    def get_action_impact(self, action: Attack):
+        involved_body_parts = action.target_body_parts
+        weight_moved = abs(
+            action.init_weight_distribution[0] - action.final_weight_distribution[0]
+        ) + abs(
+            action.init_weight_distribution[1] - action.final_weight_distribution[1]
+        )
+        total_impact = 0
+        for body_part in involved_body_parts:
+            total_impact += (
+                self.body[body_part]._mass
+                * self.body[body_part]._forces[action.id].get_kinematics()[1]
+            )
+
+        total_impact += weight_moved * self.body_mass * body_weight_impact_contribution
+        return total_impact
+
+    def _body_part_to_neutral_pos(self, part: BodyPart):
+        if part == BodyPart.HAND_L:
+            return Reaction.RETURN_HAND_L_LOW_GUARD
+        else:
+            return None
 
     # TODO: implement this
     def choose_actions(self):
@@ -256,10 +270,13 @@ class Contestant:
         # if it's still comming, if so start reacting.
         # if we are attacking and nothing has changed keep at it
         # # Update the current_actions variable if necessary
-        return None
+        return [Attack.JAB_HEAD]
 
     @classmethod
     def get_unique_id(cls):
         old_id = cls.contestant_id
         cls.contestant_id += 1
         return old_id
+
+    def update_body(self, ik_targets):
+        pass

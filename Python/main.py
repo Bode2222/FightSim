@@ -19,16 +19,17 @@ def fight(contestants):
     for contestant in contestants:
         team_map[contestant] = contestant.id
     env = Environment(team_map)
-    last_env = []
-    cur_env = []
+    env_state = []
     # Update every contestant at each time step
     for i in np.arange(0, TIME_LIMIT, DELTA):
         for contestant in contestants:
-            env.update(contestant.update(last_env))
+            env.update(contestant.update(env_state))
 
         # set current environment state to last environment state
-        last_env = env.current_state()
-        cur_env = []
+        env_state = env.current_state()
+
+        # draw to screen
+        env.draw()
 
         if env.simulation_is_over():
             break

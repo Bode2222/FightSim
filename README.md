@@ -5,6 +5,6 @@ Recreate Jin Mori vs Han Daewi fight from God of Highschool. After making the fi
 
 Imagine making luffy vs big mama in the fight sim for example. One piece is a big sub and is perfect for selling the product.
 
-Imagine it coming preloaded with your favorite characters, or a game mode where you spend points to give your characters certain moves or improve their stats, or a story mode that allows you to craft your character as you wish and simply provide the site with fanart to see them come to life fighting. Imagine the audience of Write with jenna moreci getting their hands on this
+Imagine it coming preloaded with your favorite characters, or a game mode where you spend points to give your characters certain moves or improve their stats every round, or a story mode that allows you to craft your character as you wish and simply provide the site with fanart to see them come to life fighting. Imagine the audience of 'Write with jenna moreci' getting their hands on this
 ## Customers
-Animation subreddits, fanfiction writers, anime sites, AO3, Fanfiction.net
+Animation subreddits, fanfiction writers, anime sites, AO3, Fanfiction.net. Imagine a youtube channel with ai generated pictures for the story and these animations for the fights.

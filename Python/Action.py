@@ -35,13 +35,13 @@ class AttackTag(ActionTag):
 class ReactionTag(ActionTag):
     NON_CONTACT = ActionTag.get_unique_id()
     CONTACT = ActionTag.get_unique_id()
+    RETURN = ActionTag.get_unique_id()
 
 
 class _ActionInterface:
 
     def __init__(
         self,
-        execution_time,
         target_body_locations,
         init_weight_distribution,
         final_weight_distribution,
@@ -60,20 +60,38 @@ class _ActionInterface:
         self.likely_vulnerabilites_after_execution = (
             likely_vulnerabilites_after_execution
         )
+        self.range = range
         # tags: describes this action (e.g. weave=non-contact dodge reaction) or light/fast vs slow/heavy
         self.tags = tags
         # how necessary is it that contestant is in a certain position?
         self.weight_distribution_necessity = weight_distribution_necessity
         pass
 
-    # TODO
+    # Returns true if this action uses <body_part> of contestant in execution.
     def involves_part(self, body_part: BodyPart):
-        return False
+        return body_part in self.target_body_locations.keys()
 
 
 class AttackImpl(_ActionInterface):
-    def __init__(self, *args, **kwargs):
-        super.__init__(*args, **kwargs)
+    def __init__(
+        self,
+        target_body_locations,
+        init_weight_distribution,
+        final_weight_distribution,
+        weight_distribution_necessity,
+        likely_vulnerabilites_after_execution,
+        range,
+        tags,
+    ):
+        super().__init__(
+            target_body_locations,
+            init_weight_distribution,
+            final_weight_distribution,
+            weight_distribution_necessity,
+            likely_vulnerabilites_after_execution,
+            range,
+            tags,
+        )
 
     # impact function (how hard this attack hit)
     # calc impact proportional to weight distr diff movement of body parts
@@ -84,8 +102,25 @@ class AttackImpl(_ActionInterface):
 
 
 class ReactionImpl(_ActionInterface):
-    def __init__(self, *args, **kwargs):
-        super.__init__(*args, **kwargs)
+    def __init__(
+        self,
+        target_body_locations,
+        init_weight_distribution,
+        final_weight_distribution,
+        weight_distribution_necessity,
+        likely_vulnerabilites_after_execution,
+        range,
+        tags,
+    ):
+        super().__init__(
+            target_body_locations,
+            init_weight_distribution,
+            final_weight_distribution,
+            weight_distribution_necessity,
+            likely_vulnerabilites_after_execution,
+            range,
+            tags,
+        )
 
     pass
 

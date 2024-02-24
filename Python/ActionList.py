@@ -18,7 +18,7 @@ class Attack(Enum):
     JAB_HEAD = AttackImpl(
         # For attacks the target location is assumed to be a opp contestant BodyLocation
         target_body_locations=[{BodyPart.HAND_L: Location.CHIN}],
-        weight_distr_necessity=0,
+        weight_distribution_necessity=0,
         init_weight_distribution=(50, 50),
         final_weight_distribution=(50, 50),
         likely_vulnerabilites_after_execution=[
@@ -47,6 +47,15 @@ class Reaction(Enum):
         ],
         range=Range.NULL,
         tags=[ReactionTag.CONTACT, ReactionTag.QUICK],
+    )
+    RETURN_HAND_L_LOW_GUARD = ReactionImpl(
+        target_body_locations=[{BodyPart.HAND_L: Location.CHEEK_L}],
+        init_weight_distribution=(50, 50),
+        final_weight_distribution=(50, 50),
+        weight_distribution_necessity=0,
+        likely_vulnerabilites_after_execution=[Location.FOREHEAD],
+        range=Range.NULL,
+        tags=[ReactionTag.RETURN, ReactionTag.QUICK],
     )
 
 

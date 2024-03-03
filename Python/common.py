@@ -11,6 +11,58 @@ class Hit:
         pass
 
 
+class Vec3:
+    def __init__(self, data=[0, 0, 0]):
+        self._data = data
+
+    @property
+    def x(self):
+        return self._data[0]
+
+    @property
+    def y(self):
+        return self._data[1]
+
+    @property
+    def z(self):
+        return self._data[2]
+
+    @property
+    def data(self):
+        return self._data
+
+    def __repr__(self):
+        return f"Vec3 ({self.__str__()})"
+
+    def __str__(self):
+        return f"[{self.x}, {self.y}, {self.z}]"
+
+    def __getitem__(self, index):
+        if index > 2:
+            print("Vec3 index out of bounds getter")
+        return self._data[index]
+
+    def __setitem__(self, index, value: float):
+        if index > 2:
+            print("Vec3 index out of bounds setter")
+        self._data[index] = value
+
+    def __sub__(self, other):
+        return Vec3([self.x - other.x, self.y - other.y, self.z - other.z])
+
+    def __add__(self, other):
+        return Vec3([self.x + other.x, self.y + other.y, self.z + other.z])
+
+    def __mul__(self, other):
+        if isinstance(other, (float, int)):
+            return Vec3([self.x * other, self.y * other, self.z * other])
+        else:
+            raise ValueError("Figure this out later Bk")
+
+    def magnitude(self):
+        return self.x**2 + self.y**2 + self.z**2
+
+
 class BodyPart:
     HAND_L = 0
     HAND_R = 1

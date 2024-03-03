@@ -49,6 +49,7 @@ class _ActionInterface:
         likely_vulnerabilites_after_execution,
         range,
         tags,
+        name="",
     ):
         # target locations of each involved body part. doubles as a way to check for body parts involved
         self.target_body_locations = target_body_locations
@@ -65,7 +66,7 @@ class _ActionInterface:
         self.tags = tags
         # how necessary is it that contestant is in a certain position?
         self.weight_distribution_necessity = weight_distribution_necessity
-        pass
+        self.name = name
 
     # Returns true if this action uses <body_part> of contestant in execution.
     def involves_part(self, body_part: BodyPart):
@@ -82,6 +83,7 @@ class AttackImpl(_ActionInterface):
         likely_vulnerabilites_after_execution,
         range,
         tags,
+        name="",
     ):
         super().__init__(
             target_body_locations,
@@ -91,6 +93,7 @@ class AttackImpl(_ActionInterface):
             likely_vulnerabilites_after_execution,
             range,
             tags,
+            name,
         )
 
     # impact function (how hard this attack hit)
@@ -111,6 +114,7 @@ class ReactionImpl(_ActionInterface):
         likely_vulnerabilites_after_execution,
         range,
         tags,
+        name="",
     ):
         super().__init__(
             target_body_locations,
@@ -120,6 +124,7 @@ class ReactionImpl(_ActionInterface):
             likely_vulnerabilites_after_execution,
             range,
             tags,
+            name,
         )
 
     pass

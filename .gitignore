@@ -48,3 +48,10 @@ coverage.xml
 
 # Sphinx documentation
 docs/_build/
+
+# Blender
+*.blend1
+
+# Python venv
+venv/
+```

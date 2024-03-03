@@ -1,5 +1,16 @@
-from common import Hit, ConcreteBodyPart, PhysicsAttr
-from PoseEngine import PoseEngine
+import sys
+import os
+
+dir = os.path.dirname(__file__)
+if not dir in sys.path:
+    sys.path.append(dir)
+
+from Blender.PoseEngine import PoseEngine, IKSkeleton, PhysAnimSkeleton
+from Contestant import ContestantState
+from logger import logger
+import importlib, Contestant
+
+importlib.reload(Contestant)
 
 
 # Information about a contestant in a step. Works on a 'per-contestant' basis
@@ -8,24 +19,9 @@ class EnvInfoPacket:
         self.contestant = contestant
         self._action_tags = action_tags
         self._hits = hits
+        # extra info needed to choose an action added to info packet here
+        # stuff like positions, momentums, etc
         pass
-
-
-class ContestantState:
-    def __init__(self, contestant, action_list):
-        self.contestant = contestant
-        self.action_list = action_list
-
-
-# dummy class for eventual skeleton object gotten from blender
-class IKSkeleton:
-    pass
-
-
-# dummy class. This will contain the size and joint limits and strengths for each
-# 'mass' in the physics body
-class PhysAnimSkeleton:
-    pass
 
 
 # takes in contestant states as input to update()
@@ -47,10 +43,13 @@ class Environment:
         # Give each contestant an Ik skeleton and a PhysAnim skeleton
         self._skeleton_map = {}
         for contestant in contestant_team_map.keys():
-            self._skeleton_map[contestant] = [IKSkeleton(), PhysAnimSkeleton()]
-
-        # extra info needed to choose an action added to info packet here
-        # stuff like positions, momentums, etc
+            ik_armature = IKSkeleton(contestant)
+            phys_armature = PhysAnimSkeleton(contestant)
+            self._skeleton_map[contestant] = [
+                ik_armature,
+                phys_armature,
+            ]
+            contestant.set_body_locations(ik_armature.get_ik_target_locations())
 
     def update(self, contestant_state: ContestantState):
         contestant = contestant_state.contestant
@@ -62,7 +61,7 @@ class Environment:
         contestant_info_packet = self._info_packets[contestant.id]
         for action in contestant._current_actions:
             # store tags to be passed to other contestants
-            contestant_info_packet.tags.append(action.tags)
+            action.tags.append(action.tags)
             # store actions to be passed to pose engine
             actions.append(action)
             # store mapping between who is being hit and with what bodypart
@@ -70,16 +69,13 @@ class Environment:
         # use skeletons to check if hits occurred
         hits = self._calculate_hits(strike_attempts)
         # update the contestants skeletons
-        self._skeleton_map[contestant][0] = self._pose_engine.update(
+        self._skeleton_map[contestant] = self._pose_engine.update(
             ik_skeleton, phys_skeleton, actions, hits
         )
         # give contestant their new body info
-        body_position = self.extract_ik_targets_from_skeleton(
-            self._skeleton_map[contestant]
-        )
-        contestant.update_body(body_position)
+        contestant.set_body_locations(ik_skeleton.get_ik_target_locations())
 
-    def _calculate_hits(strike_attempts):
+    def _calculate_hits(self, strike_attempts):
         return []
 
     # Given all the contestant skeletons display on screen
@@ -87,7 +83,7 @@ class Environment:
         return
 
     def extract_ik_targets_from_skeleton(self, skeleton):
-        return []
+        return skeleton.get_ik_targets()
 
     def current_state(self):
         return self._info_packets

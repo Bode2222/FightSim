@@ -14,10 +14,10 @@ from Action import (
 
 
 # Attacks
-class Attack(Enum):
-    JAB_HEAD = AttackImpl(
+Attack = {
+    "JAB_HEAD": AttackImpl(
         # For attacks the target location is assumed to be a opp contestant BodyLocation
-        target_body_locations=[{BodyPart.HAND_L: Location.CHIN}],
+        target_body_locations={BodyPart.HAND_L: Location.CHIN},
         weight_distribution_necessity=0,
         init_weight_distribution=(50, 50),
         final_weight_distribution=(50, 50),
@@ -27,16 +27,18 @@ class Attack(Enum):
         ],
         range=Range.PUNCH,
         tags=[AttackTag.QUICK, AttackTag.LIGHT],
+        name="jab head",
     )
+}
 
 
 # Reactions
 # Nomenclature: name_tagRespondingTo_attackTargetRespondingTo
 # TODO: Add reactions for returning body parts to normal locations
-class Reaction(Enum):
+Reaction = {
     # Can only trigger if we've reacted and that hand enters range
-    SIDE_PARRY_STRAIGHT_HEAD = ReactionImpl(
-        target_body_locations=[{BodyPart.HAND_R: Location.CHEEK_L}],
+    "SIDE_PARRY_STRAIGHT_HEAD": ReactionImpl(
+        target_body_locations={BodyPart.HAND_R: Location.CHEEK_L},
         init_weight_distribution=(50, 50),
         final_weight_distribution=(50, 50),
         weight_distribution_necessity=0,
@@ -47,16 +49,19 @@ class Reaction(Enum):
         ],
         range=Range.NULL,
         tags=[ReactionTag.CONTACT, ReactionTag.QUICK],
-    )
-    RETURN_HAND_L_LOW_GUARD = ReactionImpl(
-        target_body_locations=[{BodyPart.HAND_L: Location.CHEEK_L}],
+        name="parry jab",
+    ),
+    "RETURN_HAND_L_LOW_GUARD": ReactionImpl(
+        target_body_locations={BodyPart.HAND_L: Location.CHEEK_L},
         init_weight_distribution=(50, 50),
         final_weight_distribution=(50, 50),
         weight_distribution_necessity=0,
         likely_vulnerabilites_after_execution=[Location.FOREHEAD],
         range=Range.NULL,
         tags=[ReactionTag.RETURN, ReactionTag.QUICK],
-    )
+        name="return hand",
+    ),
+}
 
 
 # map each action to other actions as well as it's similarity to that other action

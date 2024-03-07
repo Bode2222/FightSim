@@ -6,11 +6,13 @@ if not dir in sys.path:
     sys.path.append(dir)
 
 from Blender.PoseEngine import PoseEngine, IKSkeleton, PhysAnimSkeleton
+import Blender.PoseEngine
 from Contestant import ContestantState
 from logger import logger
 import importlib, Contestant
 
 importlib.reload(Contestant)
+importlib.reload(Blender.PoseEngine)
 
 
 # Information about a contestant in a step. Works on a 'per-contestant' basis
@@ -27,33 +29,29 @@ class EnvInfoPacket:
 # takes in contestant states as input to update()
 # gives out info packets as as output to info()
 class Environment:
-    def __init__(self, contestant_team_map):
+    def __init__(self, contestant_team_map, sim_frame_rate=10, anim_frame_rate=24):
         self.contestant_team_map = contestant_team_map
-
-        # set game-over to false
-        self._has_finished = False
+        self._sim_frame_rate = sim_frame_rate
+        self._anim_frame_rate = anim_frame_rate
+        self._game_over = False
 
         # Make space for the info packet of each contestant
         self._info_packets = {}
         self.clear_info_packets()
 
+        contestants = contestant_team_map.keys()
         # instantiate engine to handle skeleton posing
-        self._pose_engine = PoseEngine()
+        self._pose_engine = PoseEngine(contestants, sim_frame_rate, anim_frame_rate)
 
         # Give each contestant an Ik skeleton and a PhysAnim skeleton
-        self._skeleton_map = {}
-        for contestant in contestant_team_map.keys():
-            ik_armature = IKSkeleton(contestant)
-            phys_armature = PhysAnimSkeleton(contestant)
-            self._skeleton_map[contestant] = [
-                ik_armature,
-                phys_armature,
-            ]
-            contestant.set_body_locations(ik_armature.get_ik_target_locations())
+        for contestant in contestants:
+            body_locations = self._pose_engine.get_contestant_ik_target_locations(
+                contestant
+            )
+            contestant.set_body_locations(body_locations)
 
     def update(self, contestant_state: ContestantState):
         contestant = contestant_state.contestant
-        ik_skeleton, phys_skeleton = self._skeleton_map[contestant]
         actions = []
         strike_attempts = {}
 
@@ -69,11 +67,12 @@ class Environment:
         # use skeletons to check if hits occurred
         hits = self._calculate_hits(strike_attempts)
         # update the contestants skeletons
-        self._skeleton_map[contestant] = self._pose_engine.update(
-            ik_skeleton, phys_skeleton, actions, hits
-        )
+        self._pose_engine.update(contestant, actions, hits)
         # give contestant their new body info
-        contestant.set_body_locations(ik_skeleton.get_ik_target_locations())
+        body_locations = self._pose_engine.get_contestant_ik_target_locations(
+            contestant
+        )
+        contestant.set_body_locations(body_locations)
 
     def _calculate_hits(self, strike_attempts):
         return []
@@ -93,4 +92,4 @@ class Environment:
             self._info_packets[contestant.id] = EnvInfoPacket(contestant)
 
     def simulation_is_over(self):
-        return self._has_finished
+        return self._game_over

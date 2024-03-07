@@ -1,3 +1,4 @@
 pre-commit==1.18.3
 fake-bpy-module-latest==20240303
 numpy==1.25.2
+pydeps==1.12.18

@@ -16,7 +16,7 @@ def select(object_name: str):
         bpy.ops.object.mode_set(mode="OBJECT")
 
         # Deselect all objects
-        bpy.ops.object.select_all(action="DESELECT")
+        # bpy.ops.object.select_all(action="DESELECT")
 
     # Select the object by name
     if object_name in bpy.data.objects:
@@ -38,9 +38,6 @@ def duplicate_active():
 
         # The duplicated object is now the active object
         duplicated_object = bpy.context.active_object
-
-        # Optionally, you can move the duplicated object to a new location
-        duplicated_object.location.x += 2.0  # Adjust the x-coordinate as needed
 
         # Update the scene
         bpy.context.view_layer.update()
@@ -67,12 +64,6 @@ def lookup_object_by_name(object_name):
         return bpy.data.objects[object_name]
     else:
         return None
-
-
-def select_object(object):
-    if bpy.context.active_object:
-        bpy.ops.object.select_all(action="DESELECT")
-        object.select_set(True)
 
 
 def set_pose_mode():

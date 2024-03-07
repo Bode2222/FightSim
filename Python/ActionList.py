@@ -2,15 +2,27 @@
 Every possible action that can be taken.
 """
 
+import sys
+import os
+
+# dir = os.path.dirname(bpy.data.filepath)
+dir = os.path.dirname(__file__)
+if not dir in sys.path:
+    sys.path.append(dir)
+
 from enum import Enum
 from common import BodyPart, Location
-from Action import (
-    AttackImpl,
-    ReactionImpl,
-    Range,
-    AttackTag,
-    ReactionTag,
-)
+from Action import AttackImpl, ReactionImpl, Range, AttackTag, ReactionTag, ComboImpl
+
+Tag = {
+    "QUICK": AttackTag(),
+    "LIGHT": AttackTag(),
+    "HEAVY": AttackTag(),
+    "STRAIGHT_PATH": AttackTag(),
+    "NON_CONTACT": ReactionTag(),
+    "CONTACT": ReactionTag(),
+    "RETURN": ReactionTag(),
+}
 
 
 # Attacks
@@ -26,7 +38,7 @@ Attack = {
             Location.RIBS_L_HIGH,
         ],
         range=Range.PUNCH,
-        tags=[AttackTag.QUICK, AttackTag.LIGHT],
+        tags=[Tag["QUICK"], Tag["LIGHT"], Tag["STRAIGHT_PATH"]],
         name="jab head",
     )
 }
@@ -48,7 +60,7 @@ Reaction = {
             Location.RIBS_L_LOW,
         ],
         range=Range.NULL,
-        tags=[ReactionTag.CONTACT, ReactionTag.QUICK],
+        tags=[Tag["CONTACT"], Tag["QUICK"]],
         name="parry jab",
     ),
     "RETURN_HAND_L_LOW_GUARD": ReactionImpl(
@@ -58,9 +70,37 @@ Reaction = {
         weight_distribution_necessity=0,
         likely_vulnerabilites_after_execution=[Location.FOREHEAD],
         range=Range.NULL,
-        tags=[ReactionTag.RETURN, ReactionTag.QUICK],
+        tags=[Tag["RETURN"], Tag["QUICK"], Tag["NON_CONTACT"]],
         name="return hand",
     ),
+}
+
+
+Movement = {
+    "STEP": ReactionImpl(
+        target_body_locations={BodyPart.FOOT_L: Location.FOOT_L_OUTSIDE},
+        init_weight_distribution=(50, 50),
+        final_weight_distribution=(50, 50),
+        weight_distribution_necessity=0,
+        likely_vulnerabilites_after_execution=[],
+        range=Range.NULL,
+        tags=[Tag["QUICK"]],
+        name="step",
+    ),
+    "STEP_ACROSS_BODY": ReactionImpl(
+        target_body_locations={BodyPart.FOOT_L: Location.FOOT_R_OUTSIDE},
+        init_weight_distribution=(50, 50),
+        final_weight_distribution=(50, 50),
+        weight_distribution_necessity=0,
+        likely_vulnerabilites_after_execution=[],
+        range=Range.NULL,
+        tags=[Tag["QUICK"]],
+        name="step across body",
+    ),
+}
+
+Combo = {
+    "STEP_JAB_HEAD": ComboImpl([Movement["STEP"], Attack["JAB_HEAD"]], "step jab head"),
 }
 
 

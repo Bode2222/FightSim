@@ -1,7 +1,7 @@
 # This file is the main entry point for the fight sim. It sets up the contestants and
 # environment and runs the simulation loop.
 
-import bpy
+# import bpy
 import sys
 import os
 
@@ -17,6 +17,9 @@ from Environment import Environment as EnvironmentClass
 import Contestant, Environment
 from logger import logger
 
+SIMULATION_FRAME_RATE = 10
+ANIMATION_FRAME_RATE = 24
+
 
 # Main simulation loop. at each time step all contestants are updated and useful info
 # is transmitted via a shared EnvironmentState info packet.
@@ -28,7 +31,11 @@ def fight(contestants, delta=0.1, time_limit=1):
     team_map = {}
     for contestant in contestants:
         team_map[contestant] = contestant.id
-    env = EnvironmentClass(team_map)
+    env = EnvironmentClass(
+        team_map,
+        sim_frame_rate=SIMULATION_FRAME_RATE,
+        anim_frame_rate=ANIMATION_FRAME_RATE,
+    )
     env_state = []
     # Update every contestant at each time step
     for i in np.arange(0, TIME_LIMIT, DELTA):
@@ -48,6 +55,7 @@ def fight(contestants, delta=0.1, time_limit=1):
 
 
 # Quick tasks:
+# - figure out why this is crashing.
 # - getting punched moves rigidbody
 # - if we're not facing opponent and we're not taking any action, move left leg to where it needs to be to face the opponent then move right leg.
 # - if hand is out of position and we're not taking any actions, return to position
@@ -61,7 +69,6 @@ def fight(contestants, delta=0.1, time_limit=1):
 def main():
     # Before we start, we need to reload the Contestant module to reset the global variables
     os.system("cls")
-    bpy.ops.script.reload()
     importlib.reload(Contestant)
     importlib.reload(Environment)
 

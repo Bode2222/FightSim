@@ -1,4 +1,5 @@
 from enum import Enum
+import numpy as np
 
 
 # All info about getting hit
@@ -62,12 +63,43 @@ class Vec3:
     def magnitude(self):
         return self.x**2 + self.y**2 + self.z**2
 
+    # normalize the vector
+    def normalize(self):
+        mag = self.magnitude()
+        return Vec3([self.x / mag, self.y / mag, self.z / mag])
+
+
+# convert a global position to a position relative to an object's transformation matrix
+def global_to_local(global_position, object_transformation_matrix):
+    # Convert the position to a 4x1 matrix
+    global_position_matrix = np.array([*global_position, 1]).reshape(4, 1)
+
+    # Calculate the inverse of the object's transformation matrix
+    inverse_matrix = np.linalg.inv(object_transformation_matrix)
+
+    # Multiply the global position by the inverse matrix
+    local_position_matrix = np.dot(inverse_matrix, global_position_matrix)
+
+    # Convert the result back to a Vec3 and return it
+    return Vec3(local_position_matrix[:3, 0])
+
+
+def local_to_global(local_position, object_transformation_matrix):
+    # Convert the position to a 4x1 matrix
+    local_position_matrix = np.array([*local_position, 1]).reshape(4, 1)
+
+    # Multiply the local position by the object's transformation matrix
+    global_position_matrix = np.dot(object_transformation_matrix, local_position_matrix)
+
+    # Convert the result back to a Vec3 and return it
+    return Vec3(global_position_matrix[:3, 0])
+
 
 class BodyPart:
     HAND_L = 0
     HAND_R = 1
-    LEG_L = 2
-    LEG_R = 3
+    FOOT_L = 2
+    FOOT_R = 3
     HEAD = 4
     TORSO = 5
 
@@ -107,15 +139,17 @@ class TorsoVulnerability(_LocationImpl):
 
 # class that holds all targetable vulnerabilites
 class BodyLocations(HeadVulnerability, TorsoVulnerability):
-    LEG_L = _LocationImpl.get_unique_id()
-    LEG_R = _LocationImpl.get_unique_id()
+    FOOT_L = _LocationImpl.get_unique_id()
+    FOOT_R = _LocationImpl.get_unique_id()
     pass
 
 
 # every possible targetable location by an action. superset of vulnerabilities
 class Location(BodyLocations):
-    LEG_L_OUTSIDE = _LocationImpl.get_unique_id()
-    LEG_L_BACK = _LocationImpl.get_unique_id()
+    FOOT_OUTSIDE_OFFSET = 0.3
+    FOOT_L_OUTSIDE = _LocationImpl.get_unique_id()
+    FOOT_R_OUTSIDE = _LocationImpl.get_unique_id()
+    FOOT_L_BACK = _LocationImpl.get_unique_id()
 
 
 # A location as it relates to specific contestants

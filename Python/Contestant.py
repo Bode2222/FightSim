@@ -13,12 +13,25 @@ else:
     sys.path.remove(dir)
     sys.path.append(dir)
 
+import importlib
 import numpy as np
 from enum import Enum
-from common import BodyPart, PhysicsAttr, ConcreteBodyPart, Vec3, Location
-from ActionList import Reaction, Attack
+from common import (
+    BodyPart,
+    PhysicsAttr,
+    ConcreteBodyPart,
+    Vec3,
+    Location,
+    global_to_local,
+    local_to_global,
+    HeadVulnerability,
+)
+from ActionList import Reaction, Attack, Combo
 from Action import AttackImpl, _ActionInterface
 from logger import logger
+import common
+
+importlib.reload(common)
 
 
 body_weight_impact_contribution = 0.1
@@ -26,7 +39,7 @@ body_weight_impact_contribution = 0.1
 
 # Action with concrete target locations
 class ConcreteAction(_ActionInterface):
-    def __init__(self, action: _ActionInterface, locations):
+    def __init__(self, action: _ActionInterface, locations, max_range=0):
         super().__init__(
             action.target_body_locations,
             action.init_weight_distribution,
@@ -37,7 +50,12 @@ class ConcreteAction(_ActionInterface):
             action.tags,
             action.name,
         )
-        self.action_locations = locations
+        self.strike_locations = locations
+        # range should be calculated based on stated action range and contestant body parts
+        self.max_range = max_range
+
+    def __lt__(self, other):
+        return self.max_range < other.max_range
 
     def __repr__(self):
         return f"ConcreteAction (name: {self.name})"
@@ -114,8 +132,8 @@ class Contestant:
         self._range = {
             BodyPart.HAND_L: range[0],
             BodyPart.HAND_R: range[1],
-            BodyPart.LEG_L: range[2],
-            BodyPart.LEG_R: range[3],
+            BodyPart.FOOT_L: range[2],
+            BodyPart.FOOT_R: range[3],
         }
         # action commitment precision (each action can have too little or too much
         # commitment causing constestant to 'overdo' it based on this param)
@@ -144,6 +162,8 @@ class Contestant:
         # team affiliation of this contestant
         self._team_affiliation = team_affiliation
         self.location = Vec3([self.id * 2, 0, 0])
+        # transformation matrix of the contestant in world space
+        self.transformation_matrix = None
 
         # private vars:
         # Map from body to
@@ -152,8 +172,8 @@ class Contestant:
             ConcreteBodyPart(self.id, BodyPart.TORSO): PhysicsAttr(40),
             ConcreteBodyPart(self.id, BodyPart.HAND_L): PhysicsAttr(4),
             ConcreteBodyPart(self.id, BodyPart.HAND_R): PhysicsAttr(4),
-            ConcreteBodyPart(self.id, BodyPart.LEG_L): PhysicsAttr(20),
-            ConcreteBodyPart(self.id, BodyPart.LEG_R): PhysicsAttr(20),
+            ConcreteBodyPart(self.id, BodyPart.FOOT_L): PhysicsAttr(20),
+            ConcreteBodyPart(self.id, BodyPart.FOOT_R): PhysicsAttr(20),
         }
         # total mass of body
         self.body_mass = self._calculate_body_mass()
@@ -162,7 +182,7 @@ class Contestant:
             # this should instead be Vec3's extracted from the ik target
             self.head_loc, self.torso_loc = Vec3(), Vec3()
             self.hand_l_loc, self.hand_r_loc = Vec3(), Vec3()
-            self.leg_l_loc, self.leg_r_loc = Vec3(), Vec3()
+            self.foot_l_loc, self.foot_l_loc_r_loc = Vec3(), Vec3()
             self.shoulder_l_loc, self.shoulder_r_loc = Vec3(), Vec3()
         else:
             self.set_body_locations(body_locations)
@@ -172,6 +192,14 @@ class Contestant:
         # stack containing every action from what we last reacted to to what is
         # currently happening
         self._reaction_window = []
+        # every attack we know. probably walk-to-opponent action with infinite range
+        self._known_attacks = [
+            ConcreteAction(Attack["JAB_HEAD"], [], self._range[BodyPart.HAND_L]),
+            ConcreteAction(
+                Combo["STEP_JAB_HEAD"], [], 1.5 * self._range[BodyPart.HAND_L]
+            ),
+        ]
+        self._known_attacks.sort()
         # map each attack to reaction and probability of selecting that action. Every time
         # that reaction is successfull it becomes slightly more likely
         # % weight on left and right feet (weight distr)
@@ -188,18 +216,21 @@ class Contestant:
         # that action is still happening, start reacting. if that action stops, we can
         # decide what to do from there
 
-    def set_body_locations(self, body_locations):
+    def set_body_locations(self, skeleton_info):
+        body_locations, transformation_matrix = skeleton_info
         assert len(body_locations) == 8, "Body must have 8 ik_targets"
         (
             self.head_loc,
             self.torso_loc,
             self.hand_l_loc,
             self.hand_r_loc,
-            self.leg_l_loc,
+            self.foot_l_loc,
             self.leg_r_loc,
             self.shoulder_l_loc,
             self.shoulder_r_loc,
         ) = body_locations
+        self.location = self.head_loc
+        self.transformation_matrix = transformation_matrix
 
     # list of info packets
     def update(self, environment_state: list):
@@ -214,15 +245,14 @@ class Contestant:
         # Get the number of reactions to consume this update, decide what moves to make
         def react_to_environment():
             reactions_consumed_this_update = self.get_num_reactions_this_step()
-            logger.debug(f"Reactions consumed: {reactions_consumed_this_update}")
             chosen_actions = []
             for _ in range(reactions_consumed_this_update):
                 cur_state = self._reaction_window.pop()
                 chosen_actions = self.choose_actions(cur_state)
-            if chosen_actions:
+            if chosen_actions and len(chosen_actions) > 0:
                 current_actions.extend(chosen_actions)
             else:
-                chosen_actions = self._current_actions
+                current_actions.extend(self._current_actions)
 
         # choose what moves to make next
         react_to_environment()
@@ -291,15 +321,39 @@ class Contestant:
         for body_part, loc in action.target_body_locations.items():
             target = Vec3()
             # select target locations
-            if loc == Location.CHIN:
+            if isinstance(loc, HeadVulnerability):
                 target = Vec3(victim.head_loc)
+            elif loc == Location.FOOT_L_OUTSIDE:
+                # Convert victim leg location to local space, add x axis offset and
+                # convert back to world space
+                victim_leg_local_location = global_to_local(
+                    victim.foot_l_loc, self.transformation_matrix
+                )
+                victim_leg_local_location[0] += Location.FOOT_OUTSIDE_OFFSET
+                target = local_to_global(
+                    victim_leg_local_location, self.transformation_matrix
+                )
 
             # select body locations and limit target locations
             if body_part == BodyPart.HAND_L:
-                # limit target by range from shoulder
-                new_target = target * 0.7 + self.shoulder_l_loc * 0.3
-                target = new_target
-
+                # limit target by range from shoulder: shoulder_loc + range * direction(i.e. target - shoulder_loc)
+                target = (
+                    self.shoulder_l_loc
+                    + (target - self.shoulder_l_loc).normalize()
+                    * self._range[BodyPart.HAND_L]
+                )
+            elif body_part == BodyPart.HAND_R:
+                target = (
+                    self.shoulder_r_loc
+                    + (target - self.shoulder_r_loc).normalize()
+                    * self._range[BodyPart.HAND_R]
+                )
+            elif body_part == BodyPart.FOOT_L:
+                target = (
+                    self.foot_l_loc
+                    + (target - self.foot_l_loc).normalize()
+                    * self._range[BodyPart.FOOT_L]
+                )
             result.append(target)
 
         # limit each target location by each body part going there
@@ -355,14 +409,35 @@ class Contestant:
         # if we are attacking and nothing has changed keep at it
         # # Update the current_actions variable if necessary
 
-        # at this point assume we're targetting myself
-        victim = self._select_victim(env_state)  # this is an EnvInfoPacket
+        # if we are attacking and nothing has changed keep at it
+        victim = self._select_victim(env_state)
         if not victim:
             return None
-        strike_location = self._get_strike_locations(
-            Attack["JAB_HEAD"], victim.contestant
-        )
-        return [ConcreteAction(Attack["JAB_HEAD"], strike_location)]
+        # get range of longest attack
+        max_range = self._known_attacks[-1].max_range
+        # get all victim body parts that are exposed
+        exposed_vulnerabilites = victim.contestant.get_exposed_vulnerabilites()
+        dist_to_victim = (self.head_loc - exposed_vulnerabilites[0]).magnitude()
+        logger.debug(f"dist_to_victim: {dist_to_victim}")
+        # possible attacks to choose from are all attacks that can reach the victim
+        possible_attacks = [
+            attack
+            for attack in self._known_attacks
+            if attack.max_range >= dist_to_victim
+        ]
+        # randomly select an attack
+        if len(possible_attacks) > 0:
+            attack_template = possible_attacks[
+                np.random.randint(0, len(possible_attacks))
+            ]
+            strike_locations = self._get_strike_locations(
+                attack_template, victim.contestant
+            )
+            return [ConcreteAction(attack_template, strike_locations, dist_to_victim)]
+        return None
+
+    def get_exposed_vulnerabilites(self):
+        return [self.head_loc]
 
     def _select_victim(self, env_state):
         if len(env_state) < 2:

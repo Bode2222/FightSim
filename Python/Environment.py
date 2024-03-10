@@ -1,18 +1,16 @@
-import sys
-import os
+import os, sys
 
 dir = os.path.dirname(__file__)
 if not dir in sys.path:
     sys.path.append(dir)
-
-from Blender.PoseEngine import PoseEngine, IKSkeleton, PhysAnimSkeleton
-import Blender.PoseEngine
-from Contestant import ContestantState
+from blender.pose_engine import PoseEngine
+import blender.pose_engine, contestant
+from contestant import ContestantState
 from logger import logger
-import importlib, Contestant
+import importlib
 
-importlib.reload(Contestant)
-importlib.reload(Blender.PoseEngine)
+importlib.reload(contestant)
+importlib.reload(blender.pose_engine)
 
 
 # Information about a contestant in a step. Works on a 'per-contestant' basis

@@ -13,7 +13,7 @@ class Hit:
 
 
 class Vec3:
-    def __init__(self, data=[0, 0, 0]):
+    def __init__(self, data: list = [0, 0, 0]):
         self._data = data
 
     @property
@@ -40,7 +40,7 @@ class Vec3:
 
     def __getitem__(self, index):
         if index > 2:
-            print("Vec3 index out of bounds getter")
+            raise OutOfBoundsError(f"Vec3 index out of bounds getter: {index}")
         return self._data[index]
 
     def __setitem__(self, index, value: float):
@@ -68,11 +68,17 @@ class Vec3:
         mag = self.magnitude()
         return Vec3([self.x / mag, self.y / mag, self.z / mag])
 
+    @staticmethod
+    def close(v1, v2, threshold=0.1):
+        return (v1 - v2).magnitude() < threshold
+
 
 # convert a global position to a position relative to an object's transformation matrix
-def global_to_local(global_position, object_transformation_matrix):
+def global_to_local(glob_pos: Vec3, object_transformation_matrix):
     # Convert the position to a 4x1 matrix
-    global_position_matrix = np.array([*global_position, 1]).reshape(4, 1)
+    global_position = glob_pos.data.copy()
+    global_position.extend([1])
+    global_position_matrix = np.array(global_position).reshape(4, 1)
 
     # Calculate the inverse of the object's transformation matrix
     inverse_matrix = np.linalg.inv(object_transformation_matrix)
@@ -81,18 +87,20 @@ def global_to_local(global_position, object_transformation_matrix):
     local_position_matrix = np.dot(inverse_matrix, global_position_matrix)
 
     # Convert the result back to a Vec3 and return it
-    return Vec3(local_position_matrix[:3, 0])
+    return Vec3(local_position_matrix[:3, 0].tolist())
 
 
-def local_to_global(local_position, object_transformation_matrix):
+def local_to_global(local_pos: Vec3, object_transformation_matrix):
+    local_position = local_pos.data.copy()
+    local_position.extend([1])
     # Convert the position to a 4x1 matrix
-    local_position_matrix = np.array([*local_position, 1]).reshape(4, 1)
+    local_position_matrix = np.array(local_position).reshape(4, 1)
 
     # Multiply the local position by the object's transformation matrix
     global_position_matrix = np.dot(object_transformation_matrix, local_position_matrix)
 
     # Convert the result back to a Vec3 and return it
-    return Vec3(global_position_matrix[:3, 0])
+    return Vec3(global_position_matrix[:3, 0].tolist())
 
 
 class BodyPart:

@@ -26,9 +26,9 @@ from common import (
     local_to_global,
     HeadVulnerability,
 )
-from ActionList import Reaction, Attack, Combo
-from Action import AttackImpl, _ActionInterface
-from logger import logger
+from action_list import Reaction, Attack, Combo
+from action import AttackImpl, _ActionInterface, ComboImpl
+from logger import logger, logg
 import common
 
 importlib.reload(common)
@@ -50,6 +50,7 @@ class ConcreteAction(_ActionInterface):
             action.tags,
             action.name,
         )
+        self.template = action
         self.strike_locations = locations
         # range should be calculated based on stated action range and contestant body parts
         self.max_range = max_range
@@ -103,8 +104,11 @@ class Contestant:
         personality=None,
         team_affiliation=None,
         body_locations=None,
+        id=None,
     ):  # init vars:
         self.id = self.get_unique_id()
+        if id:
+            self.id = id
         # name
         self.name = name
         # how many time steps need to pass before reaction is possible
@@ -179,27 +183,36 @@ class Contestant:
         self.body_mass = self._calculate_body_mass()
 
         if not body_locations:
-            # this should instead be Vec3's extracted from the ik target
-            self.head_loc, self.torso_loc = Vec3(), Vec3()
-            self.hand_l_loc, self.hand_r_loc = Vec3(), Vec3()
-            self.foot_l_loc, self.foot_l_loc_r_loc = Vec3(), Vec3()
-            self.shoulder_l_loc, self.shoulder_r_loc = Vec3(), Vec3()
+            self._body_locations = {
+                "head": Vec3(),
+                "torso": Vec3(),
+                "hand_l": Vec3(),
+                "hand_r": Vec3(),
+                "foot_l": Vec3(),
+                "foot_r": Vec3(),
+                "shoulder_l": Vec3(),
+                "shoulder_r": Vec3(),
+            }
         else:
             self.set_body_locations(body_locations)
 
         # action we are currently executing
         self._current_actions = []
+        # actions to be taken on completion of current action
+        self._next_actions = []
+        self._combo_victim = None
         # stack containing every action from what we last reacted to to what is
         # currently happening
         self._reaction_window = []
-        # every attack we know. probably walk-to-opponent action with infinite range
-        self._known_attacks = [
-            ConcreteAction(Attack["JAB_HEAD"], [], self._range[BodyPart.HAND_L]),
-            ConcreteAction(
-                Combo["STEP_JAB_HEAD"], [], 1.5 * self._range[BodyPart.HAND_L]
-            ),
-        ]
-        self._known_attacks.sort()
+        # every attack we know. map every attack to the range of the correspondeing body part
+        self._known_attacks = {
+            Attack["JAB_HEAD"]: self._range[BodyPart.HAND_L],
+            Combo["STEP_JAB_HEAD"]: 1.5 * self._range[BodyPart.HAND_L],
+        }
+        # sort known_attacks dict by value
+        self._known_attacks = dict(
+            sorted(self._known_attacks.items(), key=lambda item: item[1])
+        )
         # map each attack to reaction and probability of selecting that action. Every time
         # that reaction is successfull it becomes slightly more likely
         # % weight on left and right feet (weight distr)
@@ -219,17 +232,17 @@ class Contestant:
     def set_body_locations(self, skeleton_info):
         body_locations, transformation_matrix = skeleton_info
         assert len(body_locations) == 8, "Body must have 8 ik_targets"
-        (
-            self.head_loc,
-            self.torso_loc,
-            self.hand_l_loc,
-            self.hand_r_loc,
-            self.foot_l_loc,
-            self.leg_r_loc,
-            self.shoulder_l_loc,
-            self.shoulder_r_loc,
-        ) = body_locations
-        self.location = self.head_loc
+        self._body_locations = {
+            "head": body_locations[0],
+            "torso": body_locations[1],
+            "hand_l": body_locations[2],
+            "hand_r": body_locations[3],
+            "foot_l": body_locations[4],
+            "foot_r": body_locations[5],
+            "shoulder_l": body_locations[6],
+            "shoulder_r": body_locations[7],
+        }
+        self.location = self._body_locations["head"]
         self.transformation_matrix = transformation_matrix
 
     # list of info packets
@@ -244,7 +257,7 @@ class Contestant:
 
         # Get the number of reactions to consume this update, decide what moves to make
         def react_to_environment():
-            reactions_consumed_this_update = self.get_num_reactions_this_step()
+            reactions_consumed_this_update = self._get_num_reactions_this_step()
             chosen_actions = []
             for _ in range(reactions_consumed_this_update):
                 cur_state = self._reaction_window.pop()
@@ -261,13 +274,29 @@ class Contestant:
         self._current_actions = current_actions
         return ContestantState(self, self._current_actions)
 
+    def _body_part_to_ik_location(self, body_part: BodyPart):
+        if body_part == BodyPart.HAND_L:
+            return self._body_locations["hand_l"]
+        elif body_part == BodyPart.HAND_R:
+            return self._body_locations["hand_r"]
+        elif body_part == BodyPart.FOOT_L:
+            return self._body_locations["foot_l"]
+        elif body_part == BodyPart.FOOT_R:
+            return self._body_locations["foot_r"]
+        elif body_part == BodyPart.HEAD:
+            return self._body_locations["head"]
+        elif body_part == BodyPart.TORSO:
+            return self._body_locations["torso"]
+        else:
+            raise ValueError("Invalid body part")
+
     # functions:
     # We should be randomly skipping a frame and
     # consuming two frames so we react faster or slower than normal
     # The farther away the reaction window length is from the max length, the more
     # likely we are to skip the current frame
     # We do this to oscillate the reaction time and increase the randomness
-    def get_num_reactions_this_step(self):
+    def _get_num_reactions_this_step(self):
         reactions_to_consume = 0
         win_len = len(self._reaction_window)
         if win_len < self._min_reaction_time:
@@ -292,7 +321,7 @@ class Contestant:
         return sum
 
     # TODO: calculate impact based on the striking part and current velocity
-    def get_action_impact(self, action: AttackImpl):
+    def _get_action_impact(self, action: AttackImpl):
         involved_body_parts = action.target_body_parts
         weight_moved = abs(
             action.init_weight_distribution[0] - action.final_weight_distribution[0]
@@ -318,71 +347,79 @@ class Contestant:
     # limit/modify where we want to hit by range of contestant
     def _get_strike_locations(self, action, victim):
         result = []
-        for body_part, loc in action.target_body_locations.items():
-            target = Vec3()
-            # select target locations
-            if isinstance(loc, HeadVulnerability):
-                target = Vec3(victim.head_loc)
+
+        # limit target by range from body_part_loc: shoulder_loc + range * direction(i.e. target - shoulder_loc)
+        def limit_target_to_body_part_range(target, body_part):
+            body_part_loc = self._body_part_to_ik_location(body_part)
+            target = (
+                body_part_loc
+                + (target - body_part_loc).normalize() * self._range[body_part]
+            )
+            return target
+
+        # select target location in world space based on body part
+        def loc_to_victim_world_pos(loc, victim, target):
+            if loc == Location.CHIN:
+                logger.debug(
+                    f"Contestant: {self._body_locations['head']} is attacking head of {victim._body_locations['head']}"
+                )
+                target = Vec3(victim._body_locations["head"])
             elif loc == Location.FOOT_L_OUTSIDE:
+                logger.debug(
+                    f"Contestant: {self._body_locations['foot_l']} is attacking foot of {victim._body_locations['foot_r']}"
+                )
                 # Convert victim leg location to local space, add x axis offset and
                 # convert back to world space
                 victim_leg_local_location = global_to_local(
-                    victim.foot_l_loc, self.transformation_matrix
+                    victim._body_locations["foot_r"], self.transformation_matrix
                 )
                 victim_leg_local_location[0] += Location.FOOT_OUTSIDE_OFFSET
                 target = local_to_global(
                     victim_leg_local_location, self.transformation_matrix
                 )
+            return target
 
-            # select body locations and limit target locations
-            if body_part == BodyPart.HAND_L:
-                # limit target by range from shoulder: shoulder_loc + range * direction(i.e. target - shoulder_loc)
-                target = (
-                    self.shoulder_l_loc
-                    + (target - self.shoulder_l_loc).normalize()
-                    * self._range[BodyPart.HAND_L]
-                )
-            elif body_part == BodyPart.HAND_R:
-                target = (
-                    self.shoulder_r_loc
-                    + (target - self.shoulder_r_loc).normalize()
-                    * self._range[BodyPart.HAND_R]
-                )
-            elif body_part == BodyPart.FOOT_L:
-                target = (
-                    self.foot_l_loc
-                    + (target - self.foot_l_loc).normalize()
-                    * self._range[BodyPart.FOOT_L]
-                )
+        # calculate optimal position for this body part in this action
+        def calculate_optimal_position(target, body_part):
+            return target
+
+        for body_part, loc in action.target_body_locations.items():
+            target = Vec3()
+            # select target location in world space based on body part
+            target = loc_to_victim_world_pos(loc, victim, target)
+            target = calculate_optimal_position(target, body_part)
+            target = limit_target_to_body_part_range(target, body_part)
+
             result.append(target)
 
         # limit each target location by each body part going there
         return result
 
-    @staticmethod
-    def location_along_line(a: Vec3, b: Vec3, dist_from_a: float):
-        distance_ab = (
-            (b[0] - a[0]) ** 2 + (b[1] - a[1]) ** 2 + (b[2] - a[2]) ** 2
-        ) ** 0.5
-        if distance_ab == 0:
-            return Vec3()
-
-        # Calculate the direction vector from a to b
-        direction_vector = (
-            (b[0] - a[0]) / distance_ab,
-            (b[1] - a[1]) / distance_ab,
-            (b[2] - a[2]) / distance_ab,
-        )
-
-        # Scale the direction vector to find the coordinates of point x
-        x_coordinates = a[0] + direction_vector[0] * dist_from_a
-        y_coordinates = a[1] + direction_vector[1] * dist_from_a
-        z_coordinates = a[2] + direction_vector[2] * dist_from_a
-
-        return Vec3([x_coordinates, y_coordinates, z_coordinates])
-
     # TODO: implement this
-    def choose_actions(self, env_state):
+    def choose_actions(self, env_state=[], action_template=None, victim=None):
+        if action_template:
+            if not victim:
+                victim = self._select_victim(env_state)
+            if not victim:
+                logg("No victim found")
+                return None
+
+            # if attack is a combo execute everything in the combo
+            if not isinstance(action_template, ComboImpl):
+                strike_locations = self._get_strike_locations(action_template, victim)
+                return [ConcreteAction(action_template, strike_locations)]
+            else:
+                combo = action_template
+                combo_actions = []
+                for template in combo.actions:
+                    strike_locations = self._get_strike_locations(
+                        template, victim.contestant
+                    )
+                    combo_actions.append(
+                        ConcreteAction(template, strike_locations, dist_to_victim)
+                    )
+                return combo_actions
+            raise NotImplementedError("It should not be possible to reach this point")
         # choose action (multiple can be chosen if they have distinct body parts)
         # overwrite 'replace' actions (actions that move body parts back to their
         # neurtal positions) if necessary
@@ -412,32 +449,57 @@ class Contestant:
         # if we are attacking and nothing has changed keep at it
         victim = self._select_victim(env_state)
         if not victim:
+            logg("No victim found")
             return None
+
         # get range of longest attack
-        max_range = self._known_attacks[-1].max_range
+        max_range = self._known_attacks.values()[-1]
+
         # get all victim body parts that are exposed
         exposed_vulnerabilites = victim.contestant.get_exposed_vulnerabilites()
-        dist_to_victim = (self.head_loc - exposed_vulnerabilites[0]).magnitude()
-        logger.debug(f"dist_to_victim: {dist_to_victim}")
+        dist_to_victim = (
+            self._body_locations["head"] - exposed_vulnerabilites[0]
+        ).magnitude()
+        if dist_to_victim > max_range:
+            logg("Victim is out of range")
+            return None
+
         # possible attacks to choose from are all attacks that can reach the victim
         possible_attacks = [
             attack
-            for attack in self._known_attacks
-            if attack.max_range >= dist_to_victim
+            for attack, range in self._known_attacks.items()
+            if range >= dist_to_victim
         ]
-        # randomly select an attack
-        if len(possible_attacks) > 0:
-            attack_template = possible_attacks[
-                np.random.randint(0, len(possible_attacks))
-            ]
-            strike_locations = self._get_strike_locations(
-                attack_template, victim.contestant
-            )
-            return [ConcreteAction(attack_template, strike_locations, dist_to_victim)]
-        return None
+        assert len(possible_attacks) > 0, "No possible attacks found while in range"
 
-    def get_exposed_vulnerabilites(self):
-        return [self.head_loc]
+        # randomly select an attack
+        concrete_attack = possible_attacks[np.random.randint(0, len(possible_attacks))]
+        # if attack is a combo execute everything in the combo
+        if not isinstance(concrete_attack.template, ComboImpl):
+            strike_locations = self._get_strike_locations(
+                concrete_attack, victim.contestant
+            )
+            return [
+                ConcreteAction(
+                    concrete_attack.template, strike_locations, dist_to_victim
+                )
+            ]
+
+        # if attack is a combo, execute each action in the combo
+        # TODO: store the body parts involved in each action in the combo
+        # if the body part is already involved in an executing action, skip it
+        # also if a connected body part is involved in an executing action, skip it
+        combo = concrete_attack.template
+        combo_actions = []
+        for action in combo.actions:
+            strike_locations = self._get_strike_locations(action, victim.contestant)
+            combo_actions.append(
+                ConcreteAction(action, strike_locations, dist_to_victim)
+            )
+        return combo_actions
+
+    def _get_exposed_vulnerabilites(self):
+        return [self._body_locations["head"]]
 
     def _select_victim(self, env_state):
         if len(env_state) < 2:
@@ -479,6 +541,13 @@ def main():
 
     logger.info("Contestant program end.")
 
+
+# Current problems:
+# - combos are virtual actions whose action lists are virtual actions
+# - if i try to generate paths for the nested actions, it's fail
+# - but i need to gen actions for each nested action
+# - soln: If I select a combo, recursively make each action a concrete action
+# - soln: have combos lock choose action into a sequence of actions to choose
 
 if __name__ == "__main__":
     main()

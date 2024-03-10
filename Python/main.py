@@ -12,9 +12,9 @@ if not dir in sys.path:
 import numpy as np
 import importlib
 from utils import string_to_32bit_int
-from Contestant import Contestant as ContestantClass
-from Environment import Environment as EnvironmentClass
-import Contestant, Environment
+from contestant import Contestant
+from environment import Environment as Environment
+import contestant, environment
 from logger import logger
 
 SIMULATION_FRAME_RATE = 10
@@ -31,7 +31,7 @@ def fight(contestants, delta=0.1, time_limit=1):
     team_map = {}
     for contestant in contestants:
         team_map[contestant] = contestant.id
-    env = EnvironmentClass(
+    env = Environment(
         team_map,
         sim_frame_rate=SIMULATION_FRAME_RATE,
         anim_frame_rate=ANIMATION_FRAME_RATE,
@@ -55,7 +55,12 @@ def fight(contestants, delta=0.1, time_limit=1):
 
 
 # Quick tasks:
-# - figure out why this is crashing.
+# - get test_contestant working
+# - make build system
+# - ensure I can run the program twice
+# - rename action->action_template, comboImpl->combo_template, etc
+# - when foot moves move hips to be in center of feet
+# - when center of mass moves move feet to be under center of mass
 # - getting punched moves rigidbody
 # - if we're not facing opponent and we're not taking any action, move left leg to where it needs to be to face the opponent then move right leg.
 # - if hand is out of position and we're not taking any actions, return to position
@@ -69,7 +74,7 @@ def fight(contestants, delta=0.1, time_limit=1):
 def main():
     # Before we start, we need to reload the Contestant module to reset the global variables
     os.system("cls")
-    importlib.reload(Contestant)
+    importlib.reload(contestant)
     importlib.reload(Environment)
 
     logger.info("Program start")
@@ -78,8 +83,8 @@ def main():
     seed = string_to_32bit_int(hash_str)
     np.random.seed(seed)
 
-    Jack = ContestantClass("Jack", reaction_time=6)
-    Jill = ContestantClass("Jill", reaction_time=10)
+    Jack = Contestant("Jack", reaction_time=6)
+    Jill = Contestant("Jill", reaction_time=10)
 
     Jack.id, Jill.id = 1, 2
     winner = fight([Jack, Jill], 0.1, 0.5)

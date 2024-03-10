@@ -1,0 +1,95 @@
+import os, sys, bpy
+dir = os.path.dirname(__file__)
+if not dir in sys.path:
+    sys.path.append(dir)
+from common import Vec3
+from action_list import Movement, Attack
+from contestant import Contestant
+from blender.pose_engine import PoseEngine
+from logger import logger, set_debug_level
+import contestant, blender.pose_engine
+import importlib
+
+
+logg = logger.critical
+
+
+# TestContestant class is a singleton used to test the Contestant class
+class TestContestant:
+    saved_objects = []
+    DELETE_TEST_ARTIFACTS = True
+
+    # On startup, record all objects in the scene
+    def __init__(self, delete_test_artifacfts=True, debug_lvl='critical'):
+        TestContestant.saved_objects = list(bpy.data.objects)
+        TestContestant.DELETE_TEST_ARTIFACTS = delete_test_artifacfts
+        set_debug_level(debug_lvl)
+
+    @staticmethod
+    def cleanup():
+        if not TestContestant.DELETE_TEST_ARTIFACTS:
+            return
+        for obj in bpy.data.objects:
+            if obj in TestContestant.saved_objects:
+                continue
+            bpy.data.objects.remove(obj)
+
+    # Test 1: Jack's left foot is outside of victims left hip
+    @staticmethod
+    def test_foot_l_outside_placement():
+        # Create two contestants
+        jack = Contestant("Jack", id=1)
+        jill = Contestant("Jill", id=2)
+        pose_engine = PoseEngine([jack, jill])
+
+        # Set Jack's left foot to be outside of Jill's left hip
+        action_template = Movement["STEP"]
+        actions = jack.choose_actions(action_template=action_template, victim=jill)
+
+        # Update the pose engine 10 times
+        for _ in range(10):
+            pose_engine.update(jack, actions)
+        
+        # Ensure Jack's left foot is outside of Jill's left hip
+        jack.set_body_locations(pose_engine.get_contestant_ik_target_locations(jack))
+        assert Vec3.close(jack._body_locations['foot_l'], Vec3([3.7368595600128174, 0.41895297169685364, 0.08490140736103058])), "Jack's left foot is not outside of Jill's left hip"
+
+        return TestContestant.cleanup()
+    
+    # Test 2: Jack jab test
+    @staticmethod
+    def test_jab_head():
+        # Create two contestants
+        jack = Contestant("Jack", id=1)
+        jill = Contestant("Jill", id=2)
+        pose_engine = PoseEngine([jack, jill])
+
+        # Set Jack's left foot to be outside of Jill's left hip
+        action_template = Attack["JAB_HEAD"]
+        actions = jack.choose_actions(action_template=action_template, victim=jill)
+        logg(f"Jack's action: {actions[0]}")
+
+        # Update the pose engine 10 times
+        for _ in range(10):
+            pose_engine.update(jack, actions)
+        
+        # Ensure Jack's left hand is at Jill's head
+        jack.set_body_locations(pose_engine.get_contestant_ik_target_locations(jack))
+        logg(f"Jack's left hand: {jack._body_locations['hand_l']}")
+        
+        return TestContestant.cleanup()
+
+def run_tests():
+    os.system("cls")
+    TestContestant(delete_test_artifacfts=True, debug_lvl='critical')
+
+    # Run tests
+    TestContestant.test_foot_l_outside_placement()
+    #TestContestant.test_jab_head()
+
+    logg("All tests passed")
+
+
+importlib.reload(contestant)
+importlib.reload(blender.pose_engine)
+run_tests()
